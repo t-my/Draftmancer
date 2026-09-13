@@ -240,7 +240,12 @@ export default defineComponent({
 
 		// Server will handle the reconnect attempt if a draft is still ongoing.
 
-		let userID: UserID = getCookie("userID", guid());
+		// A site embedding Draftmancer can name the player it is sending in (?userID=), which is what
+		// keeps them the same person across a reload there: our cookie won't survive one when we're
+		// running in a frame on someone else's origin, and a player who comes back under a new ID can't
+		// rejoin the draft they were in the middle of.
+		const urlParamUserID = urlParams.get("userID");
+		let userID: UserID = urlParamUserID && urlParamUserID !== "" ? urlParamUserID : getCookie("userID", guid());
 		setCookie("userID", userID);
 
 		const urlParamSession = urlParams.get("session");
@@ -258,7 +263,8 @@ export default defineComponent({
 					windowSpecificData.userName &&
 					windowSpecificData.userID &&
 					windowSpecificData.sessionID &&
-					(!urlParamSession || sessionID === windowSpecificData.sessionID) // Prioritize sessionID from URL if present
+					(!urlParamSession || sessionID === windowSpecificData.sessionID) && // Prioritize sessionID from URL if present
+					(!urlParamUserID || userID === windowSpecificData.userID) // ... and the userID, likewise
 				) {
 					userName = windowSpecificData.userName;
 					userID = windowSpecificData.userID;
