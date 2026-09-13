@@ -103,10 +103,10 @@ import { InProduction, InTesting, TestingOnly } from "./Context.js";
 
 import { MatchResults, EventCompleted, Result } from "./MTGOAPI.js";
 import { sendDraftLogToCubeCobra } from "./cubeCobraIntegration.js";
+import { cancelDraftLogHook, defaultDraftLogHook, scheduleDraftLogHook, sendDraftLogHook } from "./DraftLogHook.js";
 import { isSilentAuctionDraftState, SilentAuctionDraftState } from "./SilentAuctionDraft.js";
 import { Tiebreaker } from "./SilentAuctionDraftTiebreakers.js";
 import { CardPool, SlotedCardPool } from "./CardPool.js";
-import axios from "axios";
 
 // Tournament timer depending on the number of remaining cards in a pack.
 const TournamentTimer = [
@@ -213,6 +213,9 @@ export class Session implements IIndexable {
 		this.id = id;
 		this.owner = owner;
 		if (options.managed) this.managed = options.managed;
+		// An instance run alongside a service that creates sessions for it reports back on its own,
+		// without that service (or the players) having to register a hook (see DraftLogHook).
+		this.hooks.draftLog = defaultDraftLogHook(id);
 
 		// Validate and set session settings
 		for (const p in options)
@@ -222,6 +225,7 @@ export class Session implements IIndexable {
 
 	// Expected to be called before disposing of a Session.
 	beforeDelete() {
+		cancelDraftLogHook(this.id);
 		// If we had a pending onStableLog, cancel the timeout and execute it immediately.
 		if (this.stableLogTimeout) {
 			clearTimeout(this.stableLogTimeout);
@@ -2884,6 +2888,7 @@ export class Session implements IIndexable {
 							);
 					this.finalizeLogs();
 					this.sendLogs();
+					sendDraftLogHook(this);
 					// Avoid making the logs public elsewhere when they're not sent to players.
 					if (this.draftLogRecipients !== "none") this.initStableLogTimeout();
 				} catch (e) {
@@ -3110,6 +3115,7 @@ export class Session implements IIndexable {
 		// If there's no scheduled log upload (for example if the session was closed before the logs were unlocked),
 		// execute the callback(s) immediately.
 		if (!this.stableLogTimeout) this.onStableLog();
+		else sendDraftLogHook(this);
 		this.emitToConnectedUsers("draftLog", this.draftLog);
 	}
 
@@ -3143,6 +3149,7 @@ export class Session implements IIndexable {
 		});
 		this.rescheduleStableLogTimeout();
 		this.draftLog.lastUpdated = Date.now();
+		scheduleDraftLogHook(this);
 	}
 
 	updateDecklist(userID: UserID) {
@@ -3260,11 +3267,7 @@ export class Session implements IIndexable {
 		if (this.draftLog) {
 			sendDecksToCubeArtisan(this.draftLog);
 			sendDraftLogToCubeCobra(this);
-			if (this.hooks.draftLog) {
-				axios
-					.post(this.hooks.draftLog, this.draftLog)
-					.catch((err) => console.error(`Error sending draft log to hook '${this.hooks.draftLog}':`, err));
-			}
+			sendDraftLogHook(this);
 		}
 	}
 

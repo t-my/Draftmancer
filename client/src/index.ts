@@ -1,3 +1,6 @@
+// Must come first: the modules below read storage while they are still being evaluated.
+import "./safeStorage";
+
 import AppComponent from "./App.vue";
 import { createCommonApp } from "./appCommon";
 
