@@ -288,13 +288,25 @@ export default defineComponent({
 			console.error("Error parsing stored session settings: ", e);
 		}
 
+		// Embedded in a frame on someone else's site: they own the page around us, so we drop our
+		// own chrome (the controls bars, the landing page and everything on it) and show the draft
+		// and the deck builder alone. The host still gets what it takes to start a draft.
+		const embedParam = urlParams.get("embed");
+		const embed = embedParam === "1" || embedParam === "true";
+
 		const cubeCobraID = urlParams.get("cubeCobraID");
 		if (cubeCobraID) {
 			storedSessionSettings.cubeCobraID = cubeCobraID;
 			const cubeCobraName = urlParams.get("cubeCobraName");
 			if (cubeCobraName) storedSessionSettings.cubeCobraName = cubeCobraName;
-			sessionID = "CC_" + shortguid(); // NOTE: Setting the sessionID here to avoid having it visually set to a wrong value client-side until we hear back from the server.
-			//                                        The server will have the last word on the actually used ID (making sure we're in a fresh session).
+			// ...unless the URL already named a session. A site embedding us derives that ID and
+			// sends every player of a pod into it (see ?session= above); minting a fresh one here
+			// would scatter them across a session each. The server only renames a session whose ID
+			// is already in use, so leaving it alone is safe.
+			if (!urlParamSession) {
+				sessionID = "CC_" + shortguid(); // NOTE: Setting the sessionID here to avoid having it visually set to a wrong value client-side until we hear back from the server.
+				//                                        The server will have the last word on the actually used ID (making sure we're in a fresh session).
+			}
 		}
 
 		const query: Record<string, string> = {
@@ -303,6 +315,11 @@ export default defineComponent({
 			sessionSettings: JSON.stringify(storedSessionSettings),
 		};
 		if (sessionID) query.sessionID = sessionID; // Note: Setting sessionID to undefined will send it as the "undefined" string, and that's not what we want...
+		// A site that named the session owns it: it derived that id and is sending a whole pod into
+		// it, so the second player to arrive has to land in the session the first one made rather than
+		// being moved to a fresh one of their own. This says which of the two cases a cubeCobraID is;
+		// see the server's handling of it.
+		if (urlParamSession) query.keepSessionID = "true";
 		const urlParamSpectate = urlParams.get("spectate");
 		if (urlParamSpectate) query.spectate = urlParamSpectate;
 
@@ -341,6 +358,7 @@ export default defineComponent({
 
 			// Session status
 			managed: false, // Is the session managed by the server? (i.e. the session doesn't have an owner)
+			embed: embed, // Running in a frame on another site: hide our chrome, keep the draft (?embed=1)
 			sessionID: sessionID,
 			sessionOwner: (sessionID ? userID : undefined) as UserID | undefined,
 			sessionOwnerUsername: userName as string,

@@ -1845,14 +1845,23 @@ io.on("connection", async function (socket) {
 		}
 
 		let sessionID: string = query.sessionID;
-		if (sessionSettings.cubeCobraID) {
-			// Make sure the session ID isn't in use for redirections from Cube Cobra.
+		// Stepping aside from a session already in use is for redirections from Cube Cobra, where the
+		// point is to land in a fresh session of your own. A site embedding us is the opposite case:
+		// it derived this session id and is sending a whole pod into it, so the second player to
+		// arrive has to join the one the first made. Without the exception each of them gets a CC_
+		// session to themselves, alone, each the owner of it — see keepSessionID in the client.
+		if (sessionSettings.cubeCobraID && query.keepSessionID !== "true") {
 			if (sessionIDInUse(sessionID)) sessionID = newSessionID("CC_");
 		}
 
 		joinSession(sessionID, userID, filteredSettings);
 
-		if (sessionSettings.cubeCobraID) {
+		// ...and once somebody has brought the cube in, the rest of the pod should not each go and
+		// fetch it again: they all carry the same one, and re-importing replaces the card list the
+		// session is already holding.
+		const cubeAlreadyLoaded = Sessions[sessionID]?.customCardList?.cubeCobraID === sessionSettings.cubeCobraID;
+
+		if (sessionSettings.cubeCobraID && !cubeAlreadyLoaded) {
 			if (sessionID !== query.sessionID) Connections[userID].socket.emit("setSession", sessionID);
 
 			const cubeName = sessionSettings.cubeCobraName ?? sessionSettings.cubeCobraID;
