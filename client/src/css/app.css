@@ -1813,3 +1813,15 @@ See: https://stackoverflow.com/questions/52937708/why-does-applying-a-css-filter
 		0 6px 20px 0 rgba(0, 0, 0, 0.19);
 	filter: saturate(1.2);
 }
+
+/* Embedded in a frame on another site (?embed=1): our own chrome is gone, so the draft and the
+   deck builder have the page to themselves. This is the one thing left on the idle screen. */
+.embed-idle {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	min-height: 8em;
+	padding: 2em 1em;
+	text-align: center;
+	opacity: 0.8;
+}

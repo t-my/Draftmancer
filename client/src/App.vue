@@ -9,7 +9,7 @@
 		:class="{ 'using-fixed-deck': displayFixedDeck, 'no-foil-effect': !foilEffect }"
 	>
 		<!-- Personal Options -->
-		<div id="view-controls" class="main-controls">
+		<div id="view-controls" class="main-controls" v-if="!embed">
 			<span>
 				<label for="user-name">User Name</label>
 				<delayed-input
@@ -215,7 +215,7 @@
 		<!-- Session Options -->
 		<div class="generic-container" v-if="sessionID !== undefined && !managed">
 			<div id="limited-controls" class="main-controls" v-bind:class="{ disabled: drafting }">
-				<span id="session-controls">
+				<span id="session-controls" v-if="!embed">
 					<div
 						class="inline"
 						v-tooltip="
@@ -284,7 +284,7 @@
 						/>
 					</div>
 				</span>
-				<div class="generic-container card-pool-controls">
+				<div class="generic-container card-pool-controls" v-if="!embed">
 					<input
 						type="file"
 						id="card-list-input-main"
@@ -424,7 +424,7 @@
 						<button @click="startDraft" v-show="userID === sessionOwner" class="blue">Start</button>
 					</span>
 				</span>
-				<span v-show="userID === sessionOwner">
+				<span v-show="userID === sessionOwner" v-if="!embed">
 					<dropdown :class="{ disabled: sessionOwner != userID }">
 						<template v-slot:handle> Other Game Modes </template>
 						<template v-slot:dropdown>
@@ -515,6 +515,7 @@
 					</dropdown>
 				</span>
 				<button
+					v-if="!embed"
 					v-tooltip="'More session settings'"
 					@click="displayedModal = 'sessionOptions'"
 					class="setting-button flat"
@@ -524,7 +525,7 @@
 				</button>
 			</div>
 			<div v-if="drafting" class="controls-drafting-mask">
-				<div id="url-remainder">Draftmancer.com</div>
+				<div id="url-remainder" v-if="!embed">Draftmancer.com</div>
 				<div id="draft-in-progress">
 					{{ gameModeName }}
 					<span
@@ -552,7 +553,7 @@
 		</div>
 
 		<!-- Session Players -->
-		<div class="main-controls session-players" v-if="sessionID !== undefined">
+		<div class="main-controls session-players" v-if="sessionID !== undefined && !embed">
 			<div class="session-players-header">
 				<div
 					v-if="!ownerIsPlayer"
@@ -1217,7 +1218,7 @@
 				></rotisserie-draft>
 			</div>
 
-			<div v-if="gameState === GameState.Brewing" style="padding: 0.5em 1em 0 1em">
+			<div v-if="gameState === GameState.Brewing && !embed" style="padding: 0.5em 1em 0 1em">
 				<template v-if="managed">
 					<a href="/draftqueue">
 						<font-awesome-icon icon="fa-solid fa-arrow-left" />
@@ -1556,7 +1557,12 @@
 				</div>
 			</div>
 
-			<div class="welcome" v-if="gameState === GameState.None">
+			<!-- Embedded, the page around us is the lobby: all that's left to say is whose move it is. -->
+			<div class="embed-idle" v-if="embed && gameState === GameState.None">
+				<p v-if="userID === sessionOwner">Everyone in? Press Start above.</p>
+				<p v-else>Waiting for the host to start the draft.</p>
+			</div>
+			<div class="welcome" v-if="gameState === GameState.None && !embed">
 				<template v-if="page === 'draftqueue'">
 					<DraftQueue :socket="socket"></DraftQueue>
 				</template>
@@ -2795,7 +2801,7 @@
 			</template>
 		</modal>
 		<CardPopup :language="language" :customCards="customCardList?.customCards" ref="cardPopup" />
-		<footer>
+		<footer v-if="!embed">
 			<span @click="displayedModal = 'About'" class="clickable">
 				<span class="link">About</span>
 			</span>
