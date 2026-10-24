@@ -5,6 +5,7 @@ import { DraftPick } from "./DraftLog.js";
 import { CCLSettings, CustomCardList, PackLayout, Sheet } from "./CustomCardList.js";
 import { Cards, getCardVersionsByName } from "./Cards.js";
 import { isSocketError, SocketError } from "./Message.js";
+import { skipsUnknownCards } from "./PlayableCards.js";
 import { Card, CardColor, CardID, OracleID, OnPickDraftEffect, ParameterizedDraftEffectType } from "./CardTypes.js";
 import { ArenaLineRegex, matchCardVersion, XMageToArena } from "./parseCardList.js";
 import { hasOptionalProperty, hasProperty, isArrayOf, isRecord, isString, isUnknown } from "./TypeChecks.js";
@@ -348,7 +349,14 @@ export function convertCubeCobraList(
 				if (!hasProperty("cardID", isString)(card)) return new SocketError("Missing cardID.");
 				const c = card as unknown as CubeCobraCard; // Trusting the Cube Cobra API here with the type :)
 				const cardIDOrError = handleCard(state, c);
-				if (isSocketError(cardIDOrError)) return cardIDOrError;
+				if (isSocketError(cardIDOrError)) {
+					// Next to a game engine a card we don't know can't be played either: leave it out.
+					if (skipsUnknownCards() && cardIDOrError.error?.title === "Unknown card") {
+						console.warn(`Cube '${infos.cubeID}': skipped unknown card '${c.details?.name}'.`);
+						continue;
+					}
+					return cardIDOrError;
+				}
 				const cardID = cardIDOrError;
 				if (Object.prototype.hasOwnProperty.call(sheet.cards, cardID)) sheet.cards[cardID] += 1;
 				else sheet.cards[cardID] = 1;

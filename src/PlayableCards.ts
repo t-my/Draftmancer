@@ -52,6 +52,11 @@ async function fetchList() {
 
 if (ListURL) fetchList();
 
+/** Whether a cube import should leave out cards we have no data for, rather than fail. */
+export function skipsUnknownCards() {
+	return !!ListURL;
+}
+
 function frontFace(name: string) {
 	return name.split(" //")[0].trim().toLowerCase();
 }
