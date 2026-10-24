@@ -104,7 +104,7 @@ import { InProduction, InTesting, TestingOnly } from "./Context.js";
 import { MatchResults, EventCompleted, Result } from "./MTGOAPI.js";
 import { sendDraftLogToCubeCobra } from "./cubeCobraIntegration.js";
 import { cancelDraftLogHook, defaultDraftLogHook, scheduleDraftLogHook, sendDraftLogHook } from "./DraftLogHook.js";
-import { replaceUnplayableCards } from "./PlayableCards.js";
+import { removeUnplayableCards, replaceUnplayableCards } from "./PlayableCards.js";
 import { isSilentAuctionDraftState, SilentAuctionDraftState } from "./SilentAuctionDraft.js";
 import { Tiebreaker } from "./SilentAuctionDraftTiebreakers.js";
 import { CardPool, SlotedCardPool } from "./CardPool.js";
@@ -441,7 +441,7 @@ export class Session implements IIndexable {
 
 	setCustomCardList(cardList: CustomCardList) {
 		this.useCustomCardList = true;
-		this.customCardList = cardList;
+		this.customCardList = removeUnplayableCards(this.id, cardList);
 
 		if (cardList.settings?.withReplacement !== undefined)
 			this.customCardListWithReplacement = cardList.settings.withReplacement;

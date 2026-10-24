@@ -1,6 +1,7 @@
 import axios from "axios";
 import { BoosterCardsBySet, CardsBySet, getCard, getUnique } from "./Cards.js";
-import { CardID, UniqueCard } from "./CardTypes.js";
+import { Card, CardID, UniqueCard } from "./CardTypes.js";
+import { CustomCardList, Sheet } from "./CustomCardList.js";
 import { SessionID } from "./IDTypes.js";
 import { getRandom } from "./utils.js";
 
@@ -12,6 +13,9 @@ import { getRandom } from "./utils.js";
  * swapped for a playable card of the same set and rarity. Doing it after the fact, rather than by
  * trimming the card pools, covers every way a booster is made: paper collations, set-specific
  * factories and the plain rarity slots alike.
+ *
+ * <p>A custom card list, such as a cube, has no set to draw a replacement from, so its unplayable cards
+ * are taken out of the list instead, as soon as it is loaded.
  *
  * <p>The list is fetched in the background and refreshed now and then, so the engine can be
  * upgraded without restarting this instance. Until the first fetch succeeds nothing is filtered.
@@ -52,8 +56,8 @@ function frontFace(name: string) {
 	return name.split(" //")[0].trim().toLowerCase();
 }
 
-function isPlayable(cid: CardID) {
-	return !Playable || Playable.has(frontFace(getCard(cid).name));
+function isPlayable(cid: CardID, cardOf: (cid: CardID) => Card = getCard) {
+	return !Playable || Playable.has(frontFace(cardOf(cid).name));
 }
 
 /** Swaps each unplayable card for a playable one from its set. Boosters are changed in place. */
@@ -78,4 +82,35 @@ function pickReplacement(card: UniqueCard, booster: UniqueCard[]): CardID | null
 	if (sameRarity.length > 0) return getRandom(sameRarity);
 	if (candidates.length > 0) return getRandom(candidates);
 	return null;
+}
+
+/** The list without the cards this engine can't play. Striped sheets are kept whole: their layout is positional. */
+export function removeUnplayableCards(sessionID: SessionID, list: CustomCardList): CustomCardList {
+	if (!Playable || !sessionID.startsWith(SessionPrefix)) return list;
+	const cardOf = (cid: CardID) => list.customCards?.[cid] ?? getCard(cid);
+	const removed = new Set<string>();
+	const keep = (cid: CardID) => {
+		if (isPlayable(cid, cardOf)) return true;
+		removed.add(cardOf(cid).name);
+		return false;
+	};
+	const sheets: Record<string, Sheet> = {};
+	for (const [name, sheet] of Object.entries(list.sheets)) {
+		switch (sheet.collation) {
+			case "random":
+				sheets[name] = {
+					...sheet,
+					cards: Object.fromEntries(Object.entries(sheet.cards).filter(([cid]) => keep(cid))),
+				};
+				break;
+			case "printRun":
+				sheets[name] = { ...sheet, printRun: sheet.printRun.filter(keep) };
+				break;
+			default:
+				sheets[name] = sheet;
+		}
+	}
+	if (removed.size > 0)
+		console.log(`PlayableCards: removed ${removed.size} cards from '${list.name ?? "a custom list"}' for ${sessionID}.`);
+	return { ...list, sheets };
 }
