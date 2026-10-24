@@ -104,6 +104,7 @@ import { InProduction, InTesting, TestingOnly } from "./Context.js";
 import { MatchResults, EventCompleted, Result } from "./MTGOAPI.js";
 import { sendDraftLogToCubeCobra } from "./cubeCobraIntegration.js";
 import { cancelDraftLogHook, defaultDraftLogHook, scheduleDraftLogHook, sendDraftLogHook } from "./DraftLogHook.js";
+import { replaceUnplayableCards } from "./PlayableCards.js";
 import { isSilentAuctionDraftState, SilentAuctionDraftState } from "./SilentAuctionDraft.js";
 import { Tiebreaker } from "./SilentAuctionDraftTiebreakers.js";
 import { CardPool, SlotedCardPool } from "./CardPool.js";
@@ -701,6 +702,17 @@ export class Session implements IIndexable {
 	//  - cardsPerBooster: Overrides session setting for cards per booster using custom card lists without custom slots
 	//  - customBoosters & cardsPerPlayer: Overrides corresponding session settings (used for sealed)
 	generateBoosters(
+		boosterQuantity: number,
+		options: Parameters<Session["generateBoostersWithAnyCards"]>[1] = {}
+	): UniqueCard[][] | MessageError {
+		const boosters = this.generateBoostersWithAnyCards(boosterQuantity, options);
+		// Set boosters only: pre-determined boosters and custom card lists are the session's own choice.
+		if (!isMessageError(boosters) && !this.usePredeterminedBoosters && !this.useCustomCardList)
+			replaceUnplayableCards(this.id, boosters);
+		return boosters;
+	}
+
+	generateBoostersWithAnyCards(
 		boosterQuantity: number,
 		options: {
 			useCustomBoosters?: boolean;
