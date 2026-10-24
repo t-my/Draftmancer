@@ -74,7 +74,7 @@ import {
 	JumpstartBoosters,
 } from "./Jumpstart.js";
 import { IDraftState } from "./IDraftState.js";
-import { MinesweeperCellState } from "./MinesweeperDraftTypes.js";
+import { MinesweeperCellState, MinesweeperTurnOrder } from "./MinesweeperDraftTypes.js";
 import { MinesweeperDraftState, isMinesweeperDraftState } from "./MinesweeperDraft.js";
 import { TeamSealedState, isTeamSealedState } from "./TeamSealed.js";
 import { GridDraftState, isGridDraftState } from "./GridDraft.js";
@@ -806,17 +806,20 @@ export class Session implements IIndexable {
 					boosterFactoryOptions
 				);
 				// Make sure we have enough cards
-				const defaultFactoryBoosterCount = boosterSpecificRules
-					? customBoosters.filter((s) => s === "").length
-					: boosterQuantity;
-				for (const slot of ["common", "uncommon", "rare"]) {
-					const cardCount = (defaultFactory as BoosterFactory).cardPool[slot].count();
-					const cardTarget = targets[slot] * defaultFactoryBoosterCount;
-					if (cardCount < cardTarget)
-						return new MessageError(
-							"Error generating boosters",
-							`Not enough cards (${cardCount}/${cardTarget} ${slot}s) in collection.`
-						);
+				const bf = defaultFactory as BoosterFactory;
+				if (bf.validCardPool()) {
+					const defaultFactoryBoosterCount = boosterSpecificRules
+						? customBoosters.filter((s) => s === "").length
+						: boosterQuantity;
+					for (const slot of ["common", "uncommon", "rare"]) {
+						const cardCount = bf.cardPool[slot].count();
+						const cardTarget = targets[slot] * defaultFactoryBoosterCount;
+						if (cardCount < cardTarget)
+							return new MessageError(
+								"Error generating boosters",
+								`Not enough cards (${cardCount}/${cardTarget} ${slot}s) in collection.`
+							);
+					}
 				}
 			}
 		}
@@ -878,16 +881,16 @@ export class Session implements IIndexable {
 						boosterFactoryOptions
 					);
 					// Check if we have enough card, considering maxDuplicate is a limiting factor
-					const multiplier = customBoosters.reduce((a, v) => (v === boosterSet ? a + 1 : a), 0); // Note: This won't be accurate in the case of 'random' sets.
-					for (const slot of ["common", "uncommon", "rare"]) {
-						if (
-							(usedSets[boosterSet] as BoosterFactory).cardPool[slot].count() <
-							multiplier * playerCount * targets[slot]
-						)
-							return new MessageError(
-								"Error generating boosters",
-								`Not enough (${slot}) cards in card pool for individual booster restriction '${boosterSet}'. Please check the Max. Duplicates setting.`
-							);
+					const bf = usedSets[boosterSet] as BoosterFactory;
+					if (bf.validCardPool()) {
+						const multiplier = customBoosters.reduce((a, v) => (v === boosterSet ? a + 1 : a), 0); // Note: This won't be accurate in the case of 'random' sets.
+						for (const slot of ["common", "uncommon", "rare"]) {
+							if (bf.cardPool[slot].count() < multiplier * playerCount * targets[slot])
+								return new MessageError(
+									"Error generating boosters",
+									`Not enough (${slot}) cards in card pool for individual booster restriction '${boosterSet}'. Please check the Max. Duplicates setting.`
+								);
+						}
 					}
 				}
 			}
@@ -1511,7 +1514,7 @@ export class Session implements IIndexable {
 	}
 	///////////////////// Rochester Draft End //////////////////////
 
-	///////////////////// Rotisserie Draft //////////////////////
+	//#region Rotisserie Draft
 	startRotisserieDraft(options: RotisserieDraftStartOptions): SocketAck {
 		if (this.drafting) return new SocketError("Already drafting.");
 		if (this.users.size <= 1)
@@ -1610,13 +1613,15 @@ export class Session implements IIndexable {
 		}
 		return new SocketAck();
 	}
-	///////////////////// Rotisserie Draft End //////////////////////
+	//#endregion
 
+	//#region Minesweeper Draft
 	startMinesweeperDraft(
 		gridCount: number,
 		gridWidth: number,
 		gridHeight: number,
 		picksPerGrid: number,
+		turnOrder: MinesweeperTurnOrder,
 		revealCenter: boolean,
 		revealCorners: boolean,
 		revealBorders: boolean
@@ -1648,6 +1653,7 @@ export class Session implements IIndexable {
 			gridWidth,
 			gridHeight,
 			picksPerGrid,
+			turnOrder,
 			revealCenter,
 			revealCorners,
 			revealBorders
@@ -1712,6 +1718,8 @@ export class Session implements IIndexable {
 		this.sendLogs();
 		this.cleanDraftState();
 	}
+
+	//#endregion
 
 	startSolomonDraft(cardCount: number = 8, roundCount: number = 10, removeBasicLands: boolean = true): SocketAck {
 		if (this.drafting) return new SocketError("Already drafting.");
@@ -3650,7 +3658,7 @@ export class Session implements IIndexable {
 
 	startCountdowns() {
 		if (!this.drafting || !isDraftState(this.draftState)) return;
-		const s = this.draftState as DraftState;
+		const s = this.draftState;
 		for (const userID in s.players)
 			if (
 				!s.players[userID].isBot &&
@@ -3711,29 +3719,33 @@ export class Session implements IIndexable {
 		}
 
 		this.stopCountdown(userID);
-		const countdownInterval = (this.draftState.players[userID].countdownInterval = setInterval(() => {
-			const s = this.draftState;
-			if (!isDraftState(s) || !s.players?.[userID]) {
-				clearInterval(countdownInterval);
-				return;
-			}
+		if (this.draftState.players[userID].boosters.length > 0) {
+			const countdownInterval = (this.draftState.players[userID].countdownInterval = setInterval(() => {
+				const s = this.draftState;
+				if (!isDraftState(s) || !s.players?.[userID]) {
+					clearInterval(countdownInterval);
+					return;
+				}
 
-			s.players[userID].timer -= 1;
-			this.syncCountdown(userID);
-			// If the client did not respond after 10 more seconds, force a disconnection.
-			if (s.players[userID].timer <= -10) {
-				s.players[userID].timer = 1;
-				Connections[userID]?.socket?.disconnect();
-				this.stopCountdown(userID);
-			}
-		}, 1000));
+				s.players[userID].timer -= 1;
+				this.syncCountdown(userID);
+				// If the client did not respond after 10 more seconds, force a disconnection.
+				if (s.players[userID].timer <= -10) {
+					s.players[userID].timer = 1;
+					Connections[userID]?.socket?.disconnect();
+					this.stopCountdown(userID);
+				}
+			}, 1000));
+		} else {
+			Connections[userID]?.socket.emit("disableTimer");
+		}
 	}
 
 	stopCountdown(userID: UserID) {
 		const s = this.draftState;
 		if (!isDraftState(s)) return;
-		if (s?.players?.[userID]?.countdownInterval) {
-			clearInterval(s.players[userID].countdownInterval as NodeJS.Timeout);
+		if (s.players[userID]?.countdownInterval) {
+			clearInterval(s.players[userID].countdownInterval);
 			s.players[userID].countdownInterval = null;
 		}
 	}

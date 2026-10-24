@@ -317,6 +317,9 @@ export function validateCustomCard(inputCard: any): SocketError | Card {
 						type: entry.type,
 						layouts: layouts,
 					});
+					console.log("Effects: ", card.draft_effects);
+				} else if (isSimpleDraftEffectType(entry.type)) {
+					card.draft_effects.push({ type: entry.type });
 				} else {
 					return valErr(
 						`Invalid Property`,

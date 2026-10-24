@@ -2,9 +2,23 @@ import { isUniqueCard } from "./CardTypeCheck.js";
 import { UniqueCard } from "./CardTypes.js";
 import { IDraftState, TurnBased } from "./IDraftState.js";
 import { UserID } from "./IDTypes.js";
-import { MinesweeperCellState, MinesweeperSyncData, MinesweeperSyncDataDiff } from "./MinesweeperDraftTypes.js";
+import {
+	MinesweeperCellState,
+	MinesweeperSyncData,
+	MinesweeperSyncDataDiff,
+	MinesweeperTurnOrder,
+} from "./MinesweeperDraftTypes.js";
 import { PickSummary, isPickSummary } from "./PickSummary.js";
-import { hasProperty, isArray, isArrayOf, isNumber, isObject, isSomeEnum, isString } from "./TypeChecks.js";
+import {
+	hasOptionalProperty,
+	hasProperty,
+	isArray,
+	isArrayOf,
+	isNumber,
+	isObject,
+	isSomeEnum,
+	isString,
+} from "./TypeChecks.js";
 import { negMod } from "./utils.js";
 
 export class MinesweeperCell {
@@ -153,6 +167,7 @@ export class MinesweeperDraftState extends IDraftState implements TurnBased {
 	pickNumber = 0;
 	gridNumber = 0;
 	picksPerGrid = 2;
+	turnOrder: MinesweeperTurnOrder = "snake";
 	lastPicks: PickSummary[] = [];
 
 	// Warning: this will empty the packs.
@@ -162,6 +177,7 @@ export class MinesweeperDraftState extends IDraftState implements TurnBased {
 		gridWidth: number,
 		gridHeight: number,
 		picksPerGrid: number,
+		turnOrder: MinesweeperTurnOrder,
 		revealCenter: boolean = true,
 		revealCorners: boolean = false,
 		revealBorders: boolean = false
@@ -171,6 +187,7 @@ export class MinesweeperDraftState extends IDraftState implements TurnBased {
 		this.gridWidth = gridWidth;
 		this.gridHeight = gridHeight;
 		this.picksPerGrid = picksPerGrid;
+		this.turnOrder = turnOrder;
 		for (const g of grids)
 			this.grids.push(new MinesweeperGrid(g, gridWidth, gridHeight, revealCenter, revealCorners, revealBorders));
 	}
@@ -180,23 +197,36 @@ export class MinesweeperDraftState extends IDraftState implements TurnBased {
 	}
 
 	currentPlayer() {
-		const startingDirection = Math.floor(this.gridNumber / this.players.length) % 2;
-		const direction = Math.floor(this.pickNumber / this.players.length) % 2;
-		const offset = direction
-			? this.players.length - 1 - (this.pickNumber % this.players.length)
-			: this.pickNumber % this.players.length;
-		return this.players[negMod(this.gridNumber + (startingDirection ? -1 : 1) * offset, this.players.length)];
+		switch (this.turnOrder) {
+			case "wrap":
+				return this.players[(this.gridNumber * this.picksPerGrid + this.pickNumber) % this.players.length];
+
+			case "snake":
+				const startingDirection = Math.floor(this.gridNumber / this.players.length) % 2;
+				const direction = Math.floor(this.pickNumber / this.players.length) % 2;
+				const offset = direction
+					? this.players.length - 1 - (this.pickNumber % this.players.length)
+					: this.pickNumber % this.players.length;
+				return this.players[
+					negMod(this.gridNumber + (startingDirection ? -1 : 1) * offset, this.players.length)
+				];
+		}
 	}
 
 	pick(row: number, col: number, userName: string): MinesweeperSyncDataDiff {
 		const gridUpdated = this.grid().pick(row, col);
 		++this.pickNumber;
 
-		this.lastPicks.unshift({
-			userName: userName,
-			round: this.lastPicks.length === 0 ? 0 : this.lastPicks[0].round + 1,
-			cards: [this.grid().get(row, col)!.card],
-		});
+		const card = this.grid().get(row, col)!.card;
+		if (this.lastPicks.length > 0 && this.lastPicks[0].userName === userName) {
+			this.lastPicks[0].cards.push(card);
+		} else {
+			this.lastPicks.unshift({
+				userName: userName,
+				round: this.lastPicks.length === 0 ? 0 : this.lastPicks[0].round + 1,
+				cards: [card],
+			});
+		}
 		if (this.lastPicks.length > 2) this.lastPicks.pop();
 
 		return {
@@ -242,6 +272,7 @@ export class MinesweeperDraftState extends IDraftState implements TurnBased {
 	syncData(): MinesweeperSyncData {
 		const grid = this.strippedGrid();
 		return {
+			turnOrder: this.turnOrder,
 			gridCount: this.grids.length,
 			gridNumber: this.gridNumber,
 			picksPerGrid: this.picksPerGrid,
@@ -262,8 +293,9 @@ export class MinesweeperDraftState extends IDraftState implements TurnBased {
 		if (!hasProperty("gridNumber", isNumber)(data)) return;
 		if (!hasProperty("picksPerGrid", isNumber)(data)) return;
 		if (!hasProperty("lastPicks", isArrayOf(isPickSummary))(data)) return;
+		if (!hasOptionalProperty("turnOrder", isString)(data)) return; // Optional for backwards compatibility.
 
-		const r = new MinesweeperDraftState([], [], 0, 0, 0);
+		const r = new MinesweeperDraftState([], [], 0, 0, 0, "snake");
 		r.players = data.players;
 		r.grids = [];
 		for (const grid of data.grids) {
@@ -276,6 +308,8 @@ export class MinesweeperDraftState extends IDraftState implements TurnBased {
 		r.pickNumber = data.pickNumber;
 		r.gridNumber = data.gridNumber;
 		r.picksPerGrid = data.picksPerGrid;
+		r.turnOrder =
+			data.turnOrder && (data.turnOrder === "wrap" || data.turnOrder === "snake") ? data.turnOrder : "snake";
 		r.lastPicks = data.lastPicks;
 		return r;
 	}
