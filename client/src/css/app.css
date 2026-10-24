@@ -1078,36 +1078,38 @@ ul.player-list {
 .booster-cards-enter-from.wait {
 	opacity: 0;
 }
+.selected {
+	&.booster-open-leave-active,
+	&.booster-cards-leave-active {
+		transition: all 0.5s;
+		width: calc(var(--booster-card-scale) * 200px);
+		overflow: visible;
 
-.booster-open-leave-active.selected,
-.booster-cards-leave-active.selected {
-	transition: all 0.5s;
-	width: calc(var(--booster-card-scale) * 200px);
-	overflow: visible;
+		.card-image {
+			width: calc(var(--booster-card-scale) * 200px);
+		}
+	}
+
+	&.booster-open-leave-to,
+	&.booster-cards-leave-to {
+		transform: translateY(250px) translateX(calc(var(--booster-card-scale) * -100px)) !important; /* translateX compensates for width change */
+		z-index: 2;
+		opacity: 0;
+		width: 0;
+		margin: 0;
+	}
 }
 
-.booster-open-leave-active.selected .card-image,
-.booster-cards-leave-active.selected .card-image {
-	width: calc(var(--booster-card-scale) * 200px);
-}
+.burned {
+	&.booster-open-leave-active,
+	&.booster-cards-leave-active {
+		animation: card-burn 0.5s;
+	}
 
-.booster-open-leave-to.selected,
-.booster-cards-leave-to.selected {
-	transform: translateY(250px) translateX(calc(var(--booster-card-scale) * -100px)); /* translateX compensates for width change */
-	z-index: 2;
-	opacity: 0;
-	width: 0;
-	margin: 0;
-}
-
-.booster-open-leave-active.burned,
-.booster-cards-leave-active.burned {
-	animation: card-burn 0.5s;
-}
-
-.booster-open-leave-to.burned,
-.booster-cards-leave-to.burned {
-	margin: 0;
+	&.booster-open-leave-to,
+	&.booster-cards-leave-to {
+		margin: 0;
+	}
 }
 
 @keyframes card-burn {
@@ -1812,4 +1814,16 @@ See: https://stackoverflow.com/questions/52937708/why-does-applying-a-css-filter
 		0 4px 8px 0 rgba(0, 0, 0, 0.2),
 		0 6px 20px 0 rgba(0, 0, 0, 0.19);
 	filter: saturate(1.2);
+}
+
+/* Embedded in a frame on another site (?embed=1): our own chrome is gone, so the draft and the
+   deck builder have the page to themselves. This is the one thing left on the idle screen. */
+.embed-idle {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	min-height: 8em;
+	padding: 2em 1em;
+	text-align: center;
+	opacity: 0.8;
 }

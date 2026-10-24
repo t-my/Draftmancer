@@ -23,7 +23,7 @@ import type { Options } from "@/utils";
 import type { JumpInBooster } from "@/JumpInTypes";
 import type { CustomCardList } from "@/CustomCardList";
 import { IBracket, BracketType } from "../../src/Brackets";
-import { MinesweeperSyncData } from "@/MinesweeperDraftTypes";
+import { MinesweeperSyncData, MinesweeperTurnOrder } from "@/MinesweeperDraftTypes";
 import { HousmanDraftSyncData } from "@/HousmanDraft";
 import { minesweeperApplyDiff } from "../../src/MinesweeperDraftTypes";
 import Constants, { CubeDescription, EnglishBasicLandNames } from "../../src/Constants";
@@ -240,7 +240,12 @@ export default defineComponent({
 
 		// Server will handle the reconnect attempt if a draft is still ongoing.
 
-		let userID: UserID = getCookie("userID", guid());
+		// A site embedding Draftmancer can name the player it is sending in (?userID=), which is what
+		// keeps them the same person across a reload there: our cookie won't survive one when we're
+		// running in a frame on someone else's origin, and a player who comes back under a new ID can't
+		// rejoin the draft they were in the middle of.
+		const urlParamUserID = urlParams.get("userID");
+		let userID: UserID = urlParamUserID && urlParamUserID !== "" ? urlParamUserID : getCookie("userID", guid());
 		setCookie("userID", userID);
 
 		const urlParamSession = urlParams.get("session");
@@ -258,7 +263,8 @@ export default defineComponent({
 					windowSpecificData.userName &&
 					windowSpecificData.userID &&
 					windowSpecificData.sessionID &&
-					(!urlParamSession || sessionID === windowSpecificData.sessionID) // Prioritize sessionID from URL if present
+					(!urlParamSession || sessionID === windowSpecificData.sessionID) && // Prioritize sessionID from URL if present
+					(!urlParamUserID || userID === windowSpecificData.userID) // ... and the userID, likewise
 				) {
 					userName = windowSpecificData.userName;
 					userID = windowSpecificData.userID;
@@ -282,13 +288,25 @@ export default defineComponent({
 			console.error("Error parsing stored session settings: ", e);
 		}
 
+		// Embedded in a frame on someone else's site: they own the page around us, so we drop our
+		// own chrome (the controls bars, the landing page and everything on it) and show the draft
+		// and the deck builder alone. The host still gets what it takes to start a draft.
+		const embedParam = urlParams.get("embed");
+		const embed = embedParam === "1" || embedParam === "true";
+
 		const cubeCobraID = urlParams.get("cubeCobraID");
 		if (cubeCobraID) {
 			storedSessionSettings.cubeCobraID = cubeCobraID;
 			const cubeCobraName = urlParams.get("cubeCobraName");
 			if (cubeCobraName) storedSessionSettings.cubeCobraName = cubeCobraName;
-			sessionID = "CC_" + shortguid(); // NOTE: Setting the sessionID here to avoid having it visually set to a wrong value client-side until we hear back from the server.
-			//                                        The server will have the last word on the actually used ID (making sure we're in a fresh session).
+			// ...unless the URL already named a session. A site embedding us derives that ID and
+			// sends every player of a pod into it (see ?session= above); minting a fresh one here
+			// would scatter them across a session each. The server only renames a session whose ID
+			// is already in use, so leaving it alone is safe.
+			if (!urlParamSession) {
+				sessionID = "CC_" + shortguid(); // NOTE: Setting the sessionID here to avoid having it visually set to a wrong value client-side until we hear back from the server.
+				//                                        The server will have the last word on the actually used ID (making sure we're in a fresh session).
+			}
 		}
 
 		const query: Record<string, string> = {
@@ -297,6 +315,11 @@ export default defineComponent({
 			sessionSettings: JSON.stringify(storedSessionSettings),
 		};
 		if (sessionID) query.sessionID = sessionID; // Note: Setting sessionID to undefined will send it as the "undefined" string, and that's not what we want...
+		// A site that named the session owns it: it derived that id and is sending a whole pod into
+		// it, so the second player to arrive has to land in the session the first one made rather than
+		// being moved to a fresh one of their own. This says which of the two cases a cubeCobraID is;
+		// see the server's handling of it.
+		if (urlParamSession) query.keepSessionID = "true";
 		const urlParamSpectate = urlParams.get("spectate");
 		if (urlParamSpectate) query.spectate = urlParamSpectate;
 
@@ -335,6 +358,7 @@ export default defineComponent({
 
 			// Session status
 			managed: false, // Is the session managed by the server? (i.e. the session doesn't have an owner)
+			embed: embed, // Running in a frame on another site: hide our chrome, keep the draft (?embed=1)
 			sessionID: sessionID,
 			sessionOwner: (sessionID ? userID : undefined) as UserID | undefined,
 			sessionOwnerUsername: userName as string,
@@ -2342,6 +2366,7 @@ export default defineComponent({
 					gridWidth: number,
 					gridHeight: number,
 					picksPerPlayerPerGrid: number,
+					turnOrder: MinesweeperTurnOrder,
 					revealCenter: boolean,
 					revealCorners: boolean,
 					revealBorders: boolean
@@ -2352,6 +2377,7 @@ export default defineComponent({
 							gridWidth: number,
 							gridHeight: number,
 							picksPerPlayerPerGrid: number,
+							turnOrder: MinesweeperTurnOrder,
 							revealCenter: boolean,
 							revealCorners: boolean,
 							revealBorders: boolean
@@ -2362,6 +2388,7 @@ export default defineComponent({
 								gridWidth,
 								gridHeight,
 								this.sessionUsers.length * picksPerPlayerPerGrid,
+								turnOrder,
 								revealCenter,
 								revealCorners,
 								revealBorders,
@@ -2374,6 +2401,7 @@ export default defineComponent({
 						gridWidth,
 						gridHeight,
 						picksPerPlayerPerGrid,
+						turnOrder,
 						revealCenter,
 						revealCorners,
 						revealBorders
@@ -3961,6 +3989,8 @@ export default defineComponent({
 				];
 			}
 			if (this.minesweeperDraftState || this.rotisserieDraftState || this.rochesterDraftState) {
+				if (this.minesweeperDraftState && this.minesweeperDraftState.turnOrder === "wrap")
+					return PassingOrder.Right;
 				const pickNumber = (this.minesweeperDraftState ??
 					this.rotisserieDraftState ??
 					this.rochesterDraftState)!.pickNumber;

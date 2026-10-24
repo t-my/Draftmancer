@@ -95,7 +95,8 @@
         "tmt",
         "sos",
         "msh",
-        "hob"
+        "hob",
+        "fra"
     ],
     "AlchemySets": [
         "hbg",
@@ -120,7 +121,8 @@
         "tmt",
         "sos",
         "msh",
-        "hob"
+        "hob",
+        "fra"
     ],
     "BasicLandNames": {
         "en": {
@@ -308,12 +310,12 @@
             "description": "The goal of this cube is to provide the closest experience to a powered cube using only cards available on Arena. It includes cards not legal in historic."
         },
         {
-            "name": "Jank Divers Peasant Cube",
+            "name": "Jank Diver Gaming Peasant Cube ",
             "cubeCobraID": "jdgp",
             "description": "A cube community delivering balanced, fun design through player feedback & data analysis. Play, discuss, and check out our data on <a href=\"https://discord.gg/RMaEexX\" target=\"_blank\">Discord</a>."
         },
         {
-            "name": "Jank Divers Unrestricted Cube",
+            "name": "Jank Diver Gaming Mainline Cube",
             "cubeCobraID": "jdgu",
             "description": "A cube community delivering balanced, fun design through player feedback & data analysis. Play, discuss, and check out our data on <a href=\"https://discord.gg/RMaEexX\" target=\"_blank\">Discord</a>."
         },
@@ -334,6 +336,8 @@
         }
     ],
     "PrimarySets": [
+        "mbc",
+        "fra",
         "hob",
         "msh",
         "sos",

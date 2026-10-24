@@ -9,7 +9,7 @@
 		:class="{ 'using-fixed-deck': displayFixedDeck, 'no-foil-effect': !foilEffect }"
 	>
 		<!-- Personal Options -->
-		<div id="view-controls" class="main-controls">
+		<div id="view-controls" class="main-controls" v-if="!embed">
 			<span>
 				<label for="user-name">User Name</label>
 				<delayed-input
@@ -215,7 +215,7 @@
 		<!-- Session Options -->
 		<div class="generic-container" v-if="sessionID !== undefined && !managed">
 			<div id="limited-controls" class="main-controls" v-bind:class="{ disabled: drafting }">
-				<span id="session-controls">
+				<span id="session-controls" v-if="!embed">
 					<div
 						class="inline"
 						v-tooltip="
@@ -284,7 +284,7 @@
 						/>
 					</div>
 				</span>
-				<div class="generic-container card-pool-controls">
+				<div class="generic-container card-pool-controls" v-if="!embed">
 					<input
 						type="file"
 						id="card-list-input-main"
@@ -424,7 +424,7 @@
 						<button @click="startDraft" v-show="userID === sessionOwner" class="blue">Start</button>
 					</span>
 				</span>
-				<span v-show="userID === sessionOwner">
+				<span v-show="userID === sessionOwner" v-if="!embed">
 					<dropdown :class="{ disabled: sessionOwner != userID }">
 						<template v-slot:handle> Other Game Modes </template>
 						<template v-slot:dropdown>
@@ -515,6 +515,7 @@
 					</dropdown>
 				</span>
 				<button
+					v-if="!embed"
 					v-tooltip="'More session settings'"
 					@click="displayedModal = 'sessionOptions'"
 					class="setting-button flat"
@@ -524,7 +525,7 @@
 				</button>
 			</div>
 			<div v-if="drafting" class="controls-drafting-mask">
-				<div id="url-remainder">Draftmancer.com</div>
+				<div id="url-remainder" v-if="!embed">Draftmancer.com</div>
 				<div id="draft-in-progress">
 					{{ gameModeName }}
 					<span
@@ -552,7 +553,7 @@
 		</div>
 
 		<!-- Session Players -->
-		<div class="main-controls session-players" v-if="sessionID !== undefined">
+		<div class="main-controls session-players" v-if="sessionID !== undefined && !embed">
 			<div class="session-players-header">
 				<div
 					v-if="!ownerIsPlayer"
@@ -747,7 +748,11 @@
 		</div>
 		<div class="main-content">
 			<!-- Draft Controls -->
-			<div v-show="drafting || gameState === GameState.Watching" class="generic-container">
+			<div
+				v-show="drafting || gameState === GameState.Watching"
+				class="generic-container"
+				style="overflow: hidden; scrollbar-width: none"
+			>
 				<template v-if="draftState">
 					<transition
 						:name="
@@ -789,7 +794,7 @@
 							:class="{ disabled: draftPaused }"
 						>
 							<div id="booster-controls" class="section-title">
-								<h2>Your Booster ({{ draftState.booster.length }})</h2>
+								<h2>Your Pack ({{ draftState.booster.length }})</h2>
 								<div class="controls" style="flex-grow: 2">
 									<span
 										>Pack #{{ draftState.boosterNumber + 1 }}, Pick #{{
@@ -854,7 +859,7 @@
 									</template>
 									<template v-else>
 										<font-awesome-icon icon="fa-solid fa-spinner" spin />
-										Waiting for other players to pick...
+										<span class="remove-below-1000">Waiting for other players to pick...</span>
 									</template>
 								</div>
 								<scale-slider v-model.number="boosterCardScale" />
@@ -872,7 +877,7 @@
 								:duration="
 									draftState.pickNumber === 0
 										? 500 + 500 + 400 + Math.min(20, draftState.booster.length) * 40
-										: 0
+										: undefined
 								"
 								@enter="onEnterBoosterCards"
 								appear
@@ -910,7 +915,7 @@
 										v-show="draftState.booster.length > 0"
 									/>
 								</div>
-								<booster-card
+								<BoosterCard
 									v-for="(card, idx) in draftState.booster"
 									:key="`card-booster-${card.uniqueID}`"
 									:card="card"
@@ -942,7 +947,7 @@
 									"
 									:scale="boosterCardScale"
 									:renderCommonBackside="draftState.pickNumber === 0"
-								></booster-card>
+								/>
 							</transition-group>
 						</div>
 					</transition>
@@ -1159,7 +1164,10 @@
 							</transition-group>
 						</transition>
 					</div>
-					<pick-summary :picks="rochesterDraftState.lastPicks"></pick-summary>
+					<pick-summary
+						v-if="rochesterDraftState.lastPicks && rochesterDraftState.lastPicks.length > 0"
+						:picks="rochesterDraftState.lastPicks"
+					/>
 				</div>
 				<transition name="fade">
 					<div
@@ -1217,7 +1225,7 @@
 				></rotisserie-draft>
 			</div>
 
-			<div v-if="gameState === GameState.Brewing" style="padding: 0.5em 1em 0 1em">
+			<div v-if="gameState === GameState.Brewing && !embed" style="padding: 0.5em 1em 0 1em">
 				<template v-if="managed">
 					<a href="/draftqueue">
 						<font-awesome-icon icon="fa-solid fa-arrow-left" />
@@ -1493,7 +1501,7 @@
 										group: 'deck',
 										animation: '200',
 										ghostClass: 'ghost',
-										multiDrag: true,
+										multiDrag: false,
 										selectedClass: 'multi-drag-selected',
 										multiDragKey: 'ctrl',
 									}"
@@ -1556,7 +1564,12 @@
 				</div>
 			</div>
 
-			<div class="welcome" v-if="gameState === GameState.None">
+			<!-- Embedded, the page around us is the lobby: all that's left to say is whose move it is. -->
+			<div class="embed-idle" v-if="embed && gameState === GameState.None">
+				<p v-if="userID === sessionOwner">Everyone in? Press Start above.</p>
+				<p v-else>Waiting for the host to start the draft.</p>
+			</div>
+			<div class="welcome" v-if="gameState === GameState.None && !embed">
 				<template v-if="page === 'draftqueue'">
 					<DraftQueue :socket="socket"></DraftQueue>
 				</template>
@@ -1579,8 +1592,8 @@
 							<a href="/draftqueue">
 								<div class="draft-queue-banner">
 									<img
-										src="./assets/img/draft_queue_banner_hob.webp"
-										alt="Practice The Hobbit with human players right now in the Draft Queue!"
+										src="./assets/img/draft_queue_banner_fra.webp"
+										alt="Practice Reality Fracture with human players right now in the Draft Queue!"
 										width="500"
 										height="260"
 									/>
@@ -2795,7 +2808,7 @@
 			</template>
 		</modal>
 		<CardPopup :language="language" :customCards="customCardList?.customCards" ref="cardPopup" />
-		<footer>
+		<footer v-if="!embed">
 			<span @click="displayedModal = 'About'" class="clickable">
 				<span class="link">About</span>
 			</span>

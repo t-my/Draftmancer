@@ -1551,7 +1551,8 @@
     },
     "mbc": {
         "code": "mbc",
-        "fullName": "Mystery Booster Commander Edition"
+        "fullName": "Mystery Booster Commander Edition",
+        "icon": "img/sets/mbc.svg"
     },
     "mbs": {
         "code": "mbs",
@@ -1563,6 +1564,15 @@
         "code": "md1",
         "fullName": "Modern Event Deck 2014",
         "icon": "img/sets/md1.svg"
+    },
+    "mdc": {
+        "code": "mdc",
+        "fullName": "Darkhold Destiny Commander",
+        "block": "Commander"
+    },
+    "mdd": {
+        "code": "mdd",
+        "fullName": "Marvel: Darkhold Destiny"
     },
     "me1": {
         "code": "me1",
@@ -2464,6 +2474,10 @@
         "fullName": "MagicFest 2026",
         "icon": "img/sets/pf26.svg"
     },
+    "pf27": {
+        "code": "pf27",
+        "fullName": "MagicFest 2027"
+    },
     "pfdn": {
         "code": "pfdn",
         "fullName": "Foundations Promos",
@@ -2473,6 +2487,10 @@
         "code": "pfin",
         "fullName": "Final Fantasy Promos",
         "icon": "img/sets/pfin.svg"
+    },
+    "pfra": {
+        "code": "pfra",
+        "fullName": "Reality Fracture Promos"
     },
     "pfrf": {
         "code": "pfrf",
@@ -3905,6 +3923,10 @@
         "block": "Commander",
         "icon": "img/sets/tmc.svg"
     },
+    "tmdd": {
+        "code": "tmdd",
+        "fullName": "Marvel: Darkhold Destiny Tokens"
+    },
     "tmp": {
         "code": "tmp",
         "fullName": "Tempest",
@@ -4280,6 +4302,10 @@
         "code": "yeoe",
         "fullName": "Alchemy: Edge of Eternities",
         "icon": "img/sets/yeoe.svg"
+    },
+    "yfra": {
+        "code": "yfra",
+        "fullName": "Alchemy: Reality Fracture"
     },
     "ylci": {
         "code": "ylci",

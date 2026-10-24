@@ -745,6 +745,8 @@ if not os.path.isfile(FirstFinalDataPath) or ForceCache or FetchSet:
                 selection["in_booster"] = safeInBoosterCheck(c, 276)
             case "hob":
                 selection["in_booster"] = safeInBoosterCheck(c, 188)
+            case "fra":
+                selection["in_booster"] = safeInBoosterCheck(c, 280)
 
         if c["collector_number"].endswith("†"):
             selection["in_booster"] = False
@@ -1192,6 +1194,12 @@ setinfos["mb1_convention_2021"] = {
 }
 PrimarySets.append("mb1_convention_2021")
 PrimarySets.append("mb2")
+setinfos["mbc"] = {
+    "code": "mbc",
+    "fullName": "Mystery Booster Commander Edition",
+    "icon": "img/sets/mbc.svg",
+    "isPrimary": True,
+}
 
 # Add Portal sets as draftable (They're not meant to be drafted, but some users want to try anyway!)
 PrimarySets.append("por")
@@ -1268,9 +1276,8 @@ constants["PrimarySets"] = [
         "aa2",
         "mar",
         "omb",
-        "fra",
         "trk",
-        "mbc",
+        "mdd"
     ]
 ]  # Exclude some codes that are actually part of larger sets (tsb, fmb1, h1r... see subsets), or aren't out yet
 with open("src/data/constants.json", "w", encoding="utf8") as constantsFile:

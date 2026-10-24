@@ -75,6 +75,7 @@ import { isTiebreaker } from "./SilentAuctionDraft.js";
 import { CardPool } from "./CardPool.js";
 import { convertCubeCobraList, DraftFormat, importFormat as convertDraftFormat } from "./cubeCobraIntegration.js";
 import { setBatchWindow } from "./bots/CubeCobraBots.js";
+import { MinesweeperDraftState } from "./MinesweeperDraft.js";
 
 if (process.env.NODE_ENV === "production") MTGOAPIInit();
 
@@ -843,6 +844,7 @@ function startMinesweeperDraft(
 	unsafeGridWidth: unknown,
 	unsafeGridHeight: unknown,
 	unsafePicksPerGrid: unknown,
+	unsafeTurnOrder: unknown,
 	unsafeRevealCenter: unknown,
 	unsafeRevealCorners: unknown,
 	unsafeRevealBorders: unknown,
@@ -853,6 +855,7 @@ function startMinesweeperDraft(
 	const gridWidth = !isNumber(unsafeGridWidth) ? parseInt(unsafeGridWidth as string) : unsafeGridWidth;
 	const gridHeight = !isNumber(unsafeGridHeight) ? parseInt(unsafeGridHeight as string) : unsafeGridHeight;
 	const picksPerGrid = !isNumber(unsafePicksPerGrid) ? parseInt(unsafePicksPerGrid as string) : unsafePicksPerGrid;
+	const turnOrder = !isString(unsafeTurnOrder) ? "snake" : unsafeTurnOrder;
 	const revealCenter = !isBoolean(unsafeRevealCenter) ? false : unsafeRevealCenter;
 	const revealCorners = !isBoolean(unsafeRevealCorners) ? false : unsafeRevealCorners;
 	const revealBorders = !isBoolean(unsafeRevealBorders) ? false : unsafeRevealBorders;
@@ -866,6 +869,7 @@ function startMinesweeperDraft(
 		!isNumber(picksPerGrid) ||
 		picksPerGrid <= 0 ||
 		picksPerGrid > gridWidth * gridHeight ||
+		!(turnOrder === "snake" || turnOrder === "wrap") ||
 		!isBoolean(revealCenter) ||
 		!isBoolean(revealCorners) ||
 		!isBoolean(revealBorders)
@@ -891,6 +895,7 @@ function startMinesweeperDraft(
 		gridWidth,
 		gridHeight,
 		picksPerGrid,
+		turnOrder,
 		revealCenter,
 		revealCorners,
 		revealBorders
@@ -1845,14 +1850,23 @@ io.on("connection", async function (socket) {
 		}
 
 		let sessionID: string = query.sessionID;
-		if (sessionSettings.cubeCobraID) {
-			// Make sure the session ID isn't in use for redirections from Cube Cobra.
+		// Stepping aside from a session already in use is for redirections from Cube Cobra, where the
+		// point is to land in a fresh session of your own. A site embedding us is the opposite case:
+		// it derived this session id and is sending a whole pod into it, so the second player to
+		// arrive has to join the one the first made. Without the exception each of them gets a CC_
+		// session to themselves, alone, each the owner of it — see keepSessionID in the client.
+		if (sessionSettings.cubeCobraID && query.keepSessionID !== "true") {
 			if (sessionIDInUse(sessionID)) sessionID = newSessionID("CC_");
 		}
 
 		joinSession(sessionID, userID, filteredSettings);
 
-		if (sessionSettings.cubeCobraID) {
+		// ...and once somebody has brought the cube in, the rest of the pod should not each go and
+		// fetch it again: they all carry the same one, and re-importing replaces the card list the
+		// session is already holding.
+		const cubeAlreadyLoaded = Sessions[sessionID]?.customCardList?.cubeCobraID === sessionSettings.cubeCobraID;
+
+		if (sessionSettings.cubeCobraID && !cubeAlreadyLoaded) {
 			if (sessionID !== query.sessionID) Connections[userID].socket.emit("setSession", sessionID);
 
 			const cubeName = sessionSettings.cubeCobraName ?? sessionSettings.cubeCobraID;

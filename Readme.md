@@ -29,6 +29,35 @@ Join the discord for development related discussions: https://discord.gg/XscXXNw
 
 Add `-bail` (e.g. `npm run test-bail`) to stop on the first error.
 
+## Reporting draft logs to another service
+
+A session's owner can register a hook (`setHooks`) and Draftmancer will POST the draft log to it
+once the decks settle. An instance run alongside the service that sends players here can skip that
+handshake entirely and hand every session a hook up front:
+
+-   `DRAFTLOG_HOOK_URL` — where to POST the draft log. The body is the log itself, the same shape
+    `/getDraftLog/<sessionID>` serves (and `sessionID` is in it), so a receiver can treat both the
+    same. Put any credential the receiver needs in the URL; nothing else identifies the sender.
+-   `DRAFTLOG_HOOK_SESSION_PREFIX` — only give the hook to sessions whose ID starts with this.
+    Defaults to empty, i.e. every session. Set it when the instance is shared with walk-in drafts.
+-   `DRAFTLOG_HOOK_DELAY` (default `3000` ms) — how long to wait for deck edits to stop before
+    sending, since every card moved updates the log.
+-   `DRAFTLOG_HOOK_MAX_DELAY` (default `30000` ms) — how long a steady stream of edits can hold a
+    send off.
+-   `DRAFTLOG_HOOK_TIMEOUT` (default `10000` ms) — per-request timeout.
+
+The log is sent when the draft ends, whenever the decks have been quiet for `DRAFTLOG_HOOK_DELAY`,
+and when the session is disposed of. Sends are best-effort (one retry): each POST carries the whole
+log, so the next one supersedes anything lost, and a receiver can always fall back to asking
+`/getDraftLog` itself.
+
+A site embedding Draftmancer in a frame should also pass `?userID=` alongside `?session=` and
+`?userName=`: a browser won't keep our cookie for a frame on someone else's origin, and a player who
+comes back under a fresh ID can't rejoin the draft they were in the middle of. Storage in a frame is
+handled for you — where a browser refuses it outright (Chrome blocks third-party storage in
+Incognito, and reading it there *throws*) the client falls back to keeping it in memory for the
+session rather than failing to start, see `client/src/safeStorage.ts`.
+
 ## Notes on Arena Importer
 
 -   Splits Cards (Ravnica) needs both card names, e.g. Discovery // Dispersal
